@@ -1,0 +1,6 @@
+.vs
+*.txt
+Debug
+Release
+revLoader/Debug
+revLoader/Release
