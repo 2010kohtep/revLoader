@@ -42,12 +42,12 @@ void CreateSharedMemFile(HANDLE *hMapView, HANDLE *hFileMap, HANDLE *hEvent)
 {
 	char Dest[260];
 
-	*hFileMap = CreateFileMappingA((HANDLE)-1, 0, 4u, 0, 0x400u, "Local\\SteamStart_SharedMemFile");
+	*hFileMap = CreateFileMappingA(INVALID_HANDLE_VALUE, 0, 4u, 0, 0x400u, "Local\\SteamStart_SharedMemFile");
 
 	if (!*hFileMap)
 	{
 		sprintf(Dest, "Unable to CreateFileMapping: %i", GetLastError());
-		MessageBoxA(HWND_DESKTOP, Dest, "a", 0);
+		MessageBoxA(HWND_DESKTOP, Dest, "a", MB_OK);
 	}
 
 	*hMapView = MapViewOfFile(*hFileMap, 0xF001Fu, 0, 0, 0);
@@ -55,18 +55,18 @@ void CreateSharedMemFile(HANDLE *hMapView, HANDLE *hFileMap, HANDLE *hEvent)
 	if (!*hMapView)
 	{
 		sprintf(Dest, "Unable to MapViewOfFile: %i", GetLastError());
-		MessageBoxA(HWND_DESKTOP, Dest, "a", 0);
-		CloseHandle(hFileMap);
+		MessageBoxA(HWND_DESKTOP, Dest, "a", MB_OK);
+		CloseHandle(*hFileMap);
 	}
 
-	*hEvent = CreateEventA(0, 0, 0, "Local\\SteamStart_SharedMemLock");
+	*hEvent = CreateEventA(NULL, FALSE, FALSE, "Local\\SteamStart_SharedMemLock");
 
 	if (!*hEvent)
 	{
 		sprintf(Dest, "Unable to CreateEvent: %i", GetLastError());
-		MessageBoxA(HWND_DESKTOP, Dest, "a", 0);
-		CloseHandle(hFileMap);
-		CloseHandle(hMapView);
+		MessageBoxA(HWND_DESKTOP, Dest, "a", MB_OK);
+		CloseHandle(*hFileMap);
+		CloseHandle(*hMapView);
 	}
 
 	SetEvent(*hEvent);
@@ -78,7 +78,7 @@ void SetActiveProcess(int pid)
 	HKEY phkResult;
 
 	if (RegOpenKeyExA(HKEY_CURRENT_USER, "Software\\Valve\\Steam\\ActiveProcess", 0, 0x20006, &phkResult))
-		RegCreateKeyExA(HKEY_CURRENT_USER, "Software\\Valve\\Steam\\ActiveProcess", 0, 0, 0, 0x20006, 0, &phkResult, &dwD);
+		RegCreateKeyExA(HKEY_CURRENT_USER, "Software\\Valve\\Steam\\ActiveProcess", 0, NULL, 0, 0x20006, NULL, &phkResult, &dwD);
 
 	RegSetValueExA(phkResult, "pid", 0, 4, (unsigned char *)&pid, 4);
 	RegCloseKey(phkResult);
@@ -90,7 +90,7 @@ void SetSteamClientDll(char *pszLib)
 	HKEY phkResult;
 
 	if (RegOpenKeyExA(HKEY_CURRENT_USER, "Software\\Valve\\Steam\\ActiveProcess", 0, 0x20006, &phkResult))
-		RegCreateKeyExA(HKEY_CURRENT_USER, "Software\\Valve\\Steam\\ActiveProcess", 0, 0, 0, 0x20006, 0, &phkResult, &dwD);
+		RegCreateKeyExA(HKEY_CURRENT_USER, "Software\\Valve\\Steam\\ActiveProcess", 0, NULL, 0, 0x20006, NULL, &phkResult, &dwD);
 
 	RegSetValueExA(phkResult, "SteamClientDll", 0, 1, (unsigned char *)pszLib, strlen(pszLib) + 1);
 	RegCloseKey(phkResult);
@@ -107,7 +107,7 @@ void StartGameApp()
 	StartupInformation.cb = sizeof(StartupInformation);
 	PROCESS_INFORMATION ProcessInformation = { 0 };
 
-	if (CreateProcessA(0, g_ProcName, 0, 0, 0, 0, 0, 0, &StartupInformation, &ProcessInformation))
+	if (CreateProcessA(NULL, g_ProcName, NULL, NULL, FALSE, 0, NULL, NULL, &StartupInformation, &ProcessInformation))
 	{
 		SetActiveProcess(ProcessInformation.dwProcessId);
 
@@ -124,7 +124,7 @@ void StartGameApp()
 		char Dest[512];
 		int iErrCode = GetLastError();
 		sprintf(Dest, "Unable to execute command %s (%d)", g_ProcName, iErrCode);
-		MessageBoxA(0, Dest, "Error", MB_ICONWARNING | MB_SYSTEMMODAL);
+		MessageBoxA(HWND_DESKTOP, Dest, "Error", MB_ICONWARNING | MB_SYSTEMMODAL);
 	}
 }
 
@@ -135,7 +135,7 @@ int CALLBACK WinMain(
 	_In_ int       nCmdShow
 )
 {
-	if (!GetModuleFileNameA(nullptr, g_LauncherDir, sizeof(g_LauncherDir)))
+	if (!GetModuleFileNameA(NULL, g_LauncherDir, sizeof(g_LauncherDir)))
 	{
 		MessageBoxA(HWND_DESKTOP, "Unable to initialize the process", "Error", MB_ICONWARNING | MB_SYSTEMMODAL);
 		return -1;
