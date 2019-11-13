@@ -4,15 +4,15 @@
 #include <iostream>
 #include <io.h>
 
-char g_LauncherDir[MAX_PATH] = { 0 };
-char g_RevIniName[MAX_PATH]  = { 0 };
-char g_ProcName[MAX_PATH]    = { 0 };
-char g_LibraryName[MAX_PATH] = { 0 };
+char g_LauncherDir[MAX_PATH] = {};
+char g_RevIniName[MAX_PATH] = {};
+char g_ProcName[MAX_PATH] = {};
+char g_LibraryName[MAX_PATH] = {};
 
-char g_GameAppId[256] = { 0 };
+char g_GameAppId[256] = {};
 
 wchar_t **g_Argv = nullptr;
-char g_AdditionalProcName[MAX_PATH] = { 0 };
+char g_AdditionalProcName[MAX_PATH] = {};
 int g_NumArgs = 0;
 
 bool GetSteamAppID(char *pszOut)
@@ -26,7 +26,7 @@ bool GetSteamAppID(char *pszOut)
 
 	int fno = _fileno(f);
 	int flen = _filelength(fno);
-	fread(pszOut, 1, flen, f);
+	fread(pszOut, sizeof(pszOut[0]), flen, f);
 	fclose(f);
 
 	char *psz = strchr(pszOut, ' ');
@@ -40,22 +40,22 @@ bool GetSteamAppID(char *pszOut)
 
 void CreateSharedMemFile(HANDLE *hMapView, HANDLE *hFileMap, HANDLE *hEvent)
 {
-	char Dest[260];
+	char szDest[260];
 
-	*hFileMap = CreateFileMappingA(INVALID_HANDLE_VALUE, 0, 4u, 0, 0x400u, "Local\\SteamStart_SharedMemFile");
+	*hFileMap = CreateFileMappingA(INVALID_HANDLE_VALUE, NULL, PAGE_READWRITE, 0, 1024, "Local\\SteamStart_SharedMemFile");
 
 	if (!*hFileMap)
 	{
-		sprintf(Dest, "Unable to CreateFileMapping: %i", GetLastError());
-		MessageBoxA(HWND_DESKTOP, Dest, "a", MB_OK);
+		sprintf(szDest, "Unable to CreateFileMapping: %i", GetLastError());
+		MessageBoxA(HWND_DESKTOP, szDest, "a", MB_OK);
 	}
-
-	*hMapView = MapViewOfFile(*hFileMap, 0xF001Fu, 0, 0, 0);
+	
+	*hMapView = MapViewOfFile(*hFileMap, SECTION_ALL_ACCESS, 0, 0, 0);
 
 	if (!*hMapView)
 	{
-		sprintf(Dest, "Unable to MapViewOfFile: %i", GetLastError());
-		MessageBoxA(HWND_DESKTOP, Dest, "a", MB_OK);
+		sprintf(szDest, "Unable to MapViewOfFile: %i", GetLastError());
+		MessageBoxA(HWND_DESKTOP, szDest, "a", MB_OK);
 		CloseHandle(*hFileMap);
 	}
 
@@ -63,8 +63,8 @@ void CreateSharedMemFile(HANDLE *hMapView, HANDLE *hFileMap, HANDLE *hEvent)
 
 	if (!*hEvent)
 	{
-		sprintf(Dest, "Unable to CreateEvent: %i", GetLastError());
-		MessageBoxA(HWND_DESKTOP, Dest, "a", MB_OK);
+		sprintf(szDest, "Unable to CreateEvent: %i", GetLastError());
+		MessageBoxA(HWND_DESKTOP, szDest, "a", MB_OK);
 		CloseHandle(*hFileMap);
 		CloseHandle(*hMapView);
 	}
@@ -77,10 +77,10 @@ void SetActiveProcess(int pid)
 	DWORD dwD;
 	HKEY phkResult;
 
-	if (RegOpenKeyExA(HKEY_CURRENT_USER, "Software\\Valve\\Steam\\ActiveProcess", 0, 0x20006, &phkResult))
-		RegCreateKeyExA(HKEY_CURRENT_USER, "Software\\Valve\\Steam\\ActiveProcess", 0, NULL, 0, 0x20006, NULL, &phkResult, &dwD);
+	if (RegOpenKeyExA(HKEY_CURRENT_USER, "Software\\Valve\\Steam\\ActiveProcess", 0, KEY_WRITE, &phkResult))
+		RegCreateKeyExA(HKEY_CURRENT_USER, "Software\\Valve\\Steam\\ActiveProcess", 0, NULL, 0, KEY_WRITE, NULL, &phkResult, &dwD);
 
-	RegSetValueExA(phkResult, "pid", 0, 4, (unsigned char *)&pid, 4);
+	RegSetValueExA(phkResult, "pid", 0, REG_DWORD, (BYTE *)&pid, sizeof(pid));
 	RegCloseKey(phkResult);
 }
 
@@ -89,10 +89,10 @@ void SetSteamClientDll(char *pszLib)
 	DWORD dwD;
 	HKEY phkResult;
 
-	if (RegOpenKeyExA(HKEY_CURRENT_USER, "Software\\Valve\\Steam\\ActiveProcess", 0, 0x20006, &phkResult))
-		RegCreateKeyExA(HKEY_CURRENT_USER, "Software\\Valve\\Steam\\ActiveProcess", 0, NULL, 0, 0x20006, NULL, &phkResult, &dwD);
+	if (RegOpenKeyExA(HKEY_CURRENT_USER, "Software\\Valve\\Steam\\ActiveProcess", 0, KEY_WRITE, &phkResult))
+		RegCreateKeyExA(HKEY_CURRENT_USER, "Software\\Valve\\Steam\\ActiveProcess", 0, NULL, 0, KEY_WRITE, NULL, &phkResult, &dwD);
 
-	RegSetValueExA(phkResult, "SteamClientDll", 0, 1, (unsigned char *)pszLib, strlen(pszLib) + 1);
+	RegSetValueExA(phkResult, "SteamClientDll", 0, REG_SZ, (BYTE *)pszLib, strlen(pszLib) + 1);
 	RegCloseKey(phkResult);
 }
 
@@ -103,15 +103,16 @@ void StartGameApp()
 	HANDLE hSteamMem = 0;
 	CreateSharedMemFile(&hMapView, &hFileMap, &hSteamMem);
 
-	STARTUPINFOA StartupInformation = { 0 };
+	STARTUPINFOA StartupInformation = {};
+	PROCESS_INFORMATION ProcessInformation = {};
+
 	StartupInformation.cb = sizeof(StartupInformation);
-	PROCESS_INFORMATION ProcessInformation = { 0 };
 
 	if (CreateProcessA(NULL, g_ProcName, NULL, NULL, FALSE, 0, NULL, NULL, &StartupInformation, &ProcessInformation))
 	{
 		SetActiveProcess(ProcessInformation.dwProcessId);
 
-		WaitForSingleObject(ProcessInformation.hThread, -1);
+		WaitForSingleObject(ProcessInformation.hThread, INFINITE);
 		if (hSteamMem)
 			CloseHandle(hSteamMem);
 		if (hMapView)
@@ -121,16 +122,15 @@ void StartGameApp()
 	}
 	else
 	{
-		char Dest[512];
-		int iErrCode = GetLastError();
-		sprintf(Dest, "Unable to execute command %s (%d)", g_ProcName, iErrCode);
-		MessageBoxA(HWND_DESKTOP, Dest, "Error", MB_ICONWARNING | MB_SYSTEMMODAL);
+		char szDest[512];
+		sprintf(szDest, "Unable to execute command %s (%d)", g_ProcName, GetLastError());
+		MessageBoxA(HWND_DESKTOP, szDest, "Error", MB_ICONWARNING | MB_SYSTEMMODAL);
 	}
 }
 
-int CALLBACK WinMain(
+int WINAPI WinMain(
 	_In_ HINSTANCE hInstance,
-	_In_ HINSTANCE hPrevInstance,
+	_In_opt_ HINSTANCE hPrevInstance,
 	_In_ LPSTR     lpCmdLine,
 	_In_ int       nCmdShow
 )
@@ -167,9 +167,9 @@ int CALLBACK WinMain(
 			{
 				if (iCurArg != 0)
 				{
-					char sArg[128];
-					wcstombs(sArg, g_Argv[iCurArg], sizeof(sArg) - 1);
-					strcat(g_AdditionalProcName, sArg);
+					char szArg[128];
+					wcstombs(szArg, g_Argv[iCurArg], sizeof(szArg) - 1);
+					strcat(g_AdditionalProcName, szArg);
 					strcat(g_AdditionalProcName, " ");
 				}
 			}
@@ -200,19 +200,19 @@ int CALLBACK WinMain(
 		SetEnvironmentVariableA("SteamAppId", g_GameAppId);
 	}
 
-	char SteamClientDll[MAX_PATH];
-	if (GetPrivateProfileStringA("Loader", "SteamClientDll", "", SteamClientDll, sizeof(SteamClientDll), g_RevIniName))
+	char szSteamClientDll[MAX_PATH];
+	if (GetPrivateProfileStringA("Loader", "SteamClientDll", "", szSteamClientDll, sizeof(szSteamClientDll), g_RevIniName))
 	{
-		if (SteamClientDll[0] != '\0')
+		if (szSteamClientDll[0] != '\0')
 		{
 			strcpy(g_LibraryName, g_LauncherDir);
-			strcat(g_LibraryName, SteamClientDll);
+			strcat(g_LibraryName, szSteamClientDll);
 
 			if (!LoadLibraryA(g_LibraryName))
 			{
-				char Dest[512];
-				sprintf(Dest, "Can't find steamclient.dll relative to executable path %s", g_LauncherDir);
-				MessageBoxA(HWND_DESKTOP, Dest, "Warning", MB_ICONWARNING | MB_SYSTEMMODAL);
+				char szDest[512];
+				sprintf(szDest, "Can't find steamclient.dll relative to executable path %s", g_LauncherDir);
+				MessageBoxA(HWND_DESKTOP, szDest, "Warning", MB_ICONWARNING | MB_SYSTEMMODAL);
 				return -1;
 			}
 
@@ -225,9 +225,9 @@ int CALLBACK WinMain(
 
 	if (!LoadLibraryA(g_LibraryName))
 	{
-		char Dest[512];
-		sprintf(Dest, "Can't find steam.dll relative to executable path %s", g_LauncherDir);
-		MessageBoxA(HWND_DESKTOP, Dest, "Warning", MB_ICONWARNING | MB_SYSTEMMODAL);
+		char szDest[512];
+		sprintf(szDest, "Can't find steam.dll relative to executable path %s", g_LauncherDir);
+		MessageBoxA(HWND_DESKTOP, szDest, "Warning", MB_ICONWARNING | MB_SYSTEMMODAL);
 		return -1;
 	}
 

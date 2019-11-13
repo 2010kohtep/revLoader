@@ -1,5 +1,6 @@
 .vs
 *.txt
+*.aps
 Debug
 Release
 revLoader/Debug
