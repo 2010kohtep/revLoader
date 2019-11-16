@@ -147,35 +147,28 @@ int WINAPI WinMain(
 	strcpy(g_RevIniName, g_LauncherDir);
 	strcat(g_RevIniName, "rev.ini");
 
-	wchar_t *pszCmdLine = GetCommandLineW();
-	int iCurArg = 0;
-	g_Argv = CommandLineToArgvW(pszCmdLine, &g_NumArgs);
+	g_Argv = CommandLineToArgvW(GetCommandLineW(), &g_NumArgs);
 
-	if (g_NumArgs > 0)
+	for (int i = 0; i < g_NumArgs; i++)
 	{
-		do
+		if (_wcsicmp(g_Argv[i], L"-launch") == 0)
 		{
-			if (_wcsicmp(g_Argv[iCurArg], L"-launch") == 0)
+			wcstombs(g_ProcName, g_Argv[i++ + 1], sizeof(g_ProcName) - 1);
+		}
+		else if (_wcsicmp(g_Argv[i], L"-appid") == 0)
+		{
+			wcstombs(g_GameAppId, g_Argv[i++ + 1], sizeof(g_GameAppId) - 1);
+		}
+		else
+		{
+			if (i != 0)
 			{
-				wcstombs(g_ProcName, g_Argv[iCurArg++ + 1], sizeof(g_ProcName) - 1);
+				char szArg[128];
+				wcstombs(szArg, g_Argv[i], sizeof(szArg) - 1);
+				strcat(g_AdditionalProcName, szArg);
+				strcat(g_AdditionalProcName, " ");
 			}
-			else if (_wcsicmp(g_Argv[iCurArg], L"-appid") == 0)
-			{
-				wcstombs(g_GameAppId, g_Argv[iCurArg++ + 1], sizeof(g_GameAppId) - 1);
-			}
-			else
-			{
-				if (iCurArg != 0)
-				{
-					char szArg[128];
-					wcstombs(szArg, g_Argv[iCurArg], sizeof(szArg) - 1);
-					strcat(g_AdditionalProcName, szArg);
-					strcat(g_AdditionalProcName, " ");
-				}
-			}
-
-			++iCurArg;
-		} while (iCurArg < g_NumArgs);
+		}
 	}
 
 	if (strlen(g_AdditionalProcName) != 0)
